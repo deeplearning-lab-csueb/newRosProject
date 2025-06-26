@@ -1,6 +1,6 @@
 # If want to run the object-detection on duckiebot(yolo11)
 
-First run `dts devel build -f -H ROBOT_NAME` , This command is use to build the container base one duckiebot environment.
+First run `dts devel build -f -H ROBOT_NAME` , This command is use to build the container base on duckiebot environment.
 
 Next Step run `dts devel run -H ROBOT_NAME -L objection_detection` must be -H can not use -R, and the -L means use which launcher file, here we use objection_detection.sh.
 
