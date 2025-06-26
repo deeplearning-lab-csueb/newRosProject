@@ -1,14 +1,12 @@
-# parameters
+# =================== Duckietown 项目标准参数 ===================
 ARG PROJECT_NAME="ROS"
 ARG PROJECT_DESCRIPTION="R"
 ARG PROJECT_MAINTAINER="haoranli (branson0419@gmail.com)"
 ARG PROJECT_FORMAT_VERSION=4
-# pick an icon from: https://fontawesome.com/v4.7.0/icons/
 ARG PROJECT_ICON="cube"
-# ROS
 ARG ROS_DISTRO=noetic
-# ==================================================>
-# ==> Do not change the code below this line
+
+# =================== 基础镜像参数（Duckietown） ===================
 ARG ARCH=arm64v8
 ARG DISTRO=daffy
 ARG DOCKER_REGISTRY=docker.io
@@ -18,60 +16,45 @@ ARG BASE_TAG=ente-arm64v8
 ARG LAUNCHER=default
 ARG BASE_REPOSITORY=dt-duckpack-yolov11
 
-# define base image
+# =================== FROM Duckietown 镜像 ===================
 FROM ${DOCKER_REGISTRY}/${BASE_IMAGE}:${BASE_TAG} as base
 
-# recall all arguments
-ARG ARCH
-ARG DISTRO
-ARG DOCKER_REGISTRY
+# 环境变量参数
 ARG PROJECT_NAME
 ARG PROJECT_DESCRIPTION
 ARG PROJECT_MAINTAINER
 ARG PROJECT_ICON
 ARG PROJECT_FORMAT_VERSION
-ARG BASE_TAG
+ARG ROS_DISTRO
+ARG LAUNCHER
 ARG BASE_REPOSITORY
 ARG BASE_ORGANIZATION
-ARG LAUNCHER
+ARG BASE_TAG
 
-# - buildkit
-ARG TARGETPLATFORM
-ARG TARGETOS
-ARG TARGETARCH
-ARG TARGETVARIANT
-# - ROS
-ARG ROS_DISTRO
-ARG ROS_PKG=ros_base
+# ROS + Catkin 环境
 ENV ROS_PYTHON_VERSION=3
 ENV ROS_ROOT=/opt/ros/${ROS_DISTRO}
-
-# check build arguments
-# ROS info
 ENV ROS_DISTRO="${ROS_DISTRO}" \
     CATKIN_WS_DIR="/code"
-ENV LD_LIBRARY_PATH="/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}"
 
-# check build arguments
-RUN dt-args-check \
-    "PROJECT_NAME" "${PROJECT_NAME}" \
-    "PROJECT_DESCRIPTION" "${PROJECT_DESCRIPTION}" \
-    "PROJECT_MAINTAINER" "${PROJECT_MAINTAINER}" \
-    "PROJECT_ICON" "${PROJECT_ICON}" \
-    "PROJECT_FORMAT_VERSION" "${PROJECT_FORMAT_VERSION}" \
-    "ARCH" "${ARCH}" \
-    "DISTRO" "${DISTRO}" \
-    "DOCKER_REGISTRY" "${DOCKER_REGISTRY}" \
-    "BASE_REPOSITORY" "${BASE_REPOSITORY}" \
-    && dt-check-project-format "${PROJECT_FORMAT_VERSION}"
+# ========== 保证系统环境整洁，移除有问题的包 ==========
+RUN apt-get update && \
+    apt-get remove --purge -y python-opencv python3-opencv-apps python3-opencv-contrib \
+    libboost-python1.65.1 libboost-python1.65.1-dev libboost-python-dev ros-noetic-cv-bridge && \
+    pip3 uninstall -y opencv-python opencv-python-headless || true
 
-# define/create repository path
-ARG PROJECT_PATH="${SOURCE_DIR}/${PROJECT_NAME}"
-ARG PROJECT_LAUNCHERS_PATH="${LAUNCHERS_DIR}/${PROJECT_NAME}"
-RUN mkdir -p "${PROJECT_PATH}" "${PROJECT_LAUNCHERS_PATH}"
+# ========== 安装正确的、与Jetson适配的依赖（APT ONLY） ==========
+RUN apt-get update && \
+    apt-get install -y python3-opencv libopencv-dev libboost-python1.65.1 libboost-python-dev ros-${ROS_DISTRO}-cv-bridge
+
+# ========== LD_LIBRARY_PATH 覆盖，保证so查找顺利 ==========
+ENV LD_LIBRARY_PATH="/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/opt/ros/${ROS_DISTRO}/lib:/code/devel/lib:${LD_LIBRARY_PATH}"
+
+# ========== 项目相关路径参数 ==========
+ARG PROJECT_PATH="/code"
+ARG PROJECT_LAUNCHERS_PATH="/code/launchers"
 WORKDIR "${PROJECT_PATH}"
 
-# keep some arguments as environment variables
 ENV DT_PROJECT_NAME="${PROJECT_NAME}" \
     DT_PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION}" \
     DT_PROJECT_MAINTAINER="${PROJECT_MAINTAINER}" \
@@ -80,60 +63,51 @@ ENV DT_PROJECT_NAME="${PROJECT_NAME}" \
     DT_PROJECT_LAUNCHERS_PATH="${PROJECT_LAUNCHERS_PATH}" \
     DT_LAUNCHER="${LAUNCHER}"
 
-# install apt dependencies
+# ========== 安装 apt 依赖 ==========
 COPY ./dependencies-apt.txt "${PROJECT_PATH}/"
 RUN dt-apt-install ${PROJECT_PATH}/dependencies-apt.txt
 
-# install python3 dependencies
+# ========== 安装 python3 依赖 ==========
 ARG PIP_INDEX_URL="https://pypi.org/simple"
-
 ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 COPY ./dependencies-py3.* "${PROJECT_PATH}/"
 RUN dt-pip3-install "${PROJECT_PATH}/dependencies-py3.*"
 
-# copy the source code
+# ========== 复制源码 ==========
 COPY ./packages "${PROJECT_PATH}/packages"
-#COPY ./packages/ ${CATKIN_WS_DIR}/src/
 
-# install scripts
-COPY ./assets/entrypoint.d "${PROJECT_PATH}/assets/entrypoint.d"
-COPY ./assets/environment.d "${PROJECT_PATH}/assets/environment.d"
-copy ./assets/myyolo11n.pt "${PROJECT_PATH}/assets/myyolo11n.pt"
-
-# build packages
+# ========== 构建 catkin 工作空间 ==========
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-  catkin build \
-    --workspace ${CATKIN_WS_DIR}/
+  catkin build --workspace ${CATKIN_WS_DIR}/
 
-# install launcher scripts
+# ========== 安装 launcher 脚本 ==========
 COPY ./launchers/. "${PROJECT_LAUNCHERS_PATH}/"
 RUN dt-install-launchers "${PROJECT_LAUNCHERS_PATH}"
 
+# ========== 复制 assets ==========
+COPY ./assets/entrypoint.d "${PROJECT_PATH}/assets/entrypoint.d"
+COPY ./assets/environment.d "${PROJECT_PATH}/assets/environment.d"
 
-# define default command
+# ========== 默认命令 ==========
 CMD ["bash", "-c", "dt-launcher-${DT_LAUNCHER}"]
 
+# ========== 标准 Duckietown 镜像 LABEL ==========
 LABEL \
-    # module info
     org.duckietown.label.project.name="${PROJECT_NAME}" \
     org.duckietown.label.project.description="${PROJECT_DESCRIPTION}" \
     org.duckietown.label.project.maintainer="${PROJECT_MAINTAINER}" \
     org.duckietown.label.project.icon="${PROJECT_ICON}" \
     org.duckietown.label.project.path="${PROJECT_PATH}" \
     org.duckietown.label.project.launchers.path="${PROJECT_LAUNCHERS_PATH}" \
-    # format
     org.duckietown.label.format.version="${PROJECT_FORMAT_VERSION}" \
-    # platform info
-    org.duckietown.label.platform.os="${TARGETOS}" \
-    org.duckietown.label.platform.architecture="${TARGETARCH}" \
-    org.duckietown.label.platform.variant="${TARGETVARIANT}" \
-    # code info
+    org.duckietown.label.platform.os="linux" \
+    org.duckietown.label.platform.architecture="arm64v8" \
     org.duckietown.label.code.distro="${DISTRO}" \
     org.duckietown.label.code.launcher="${LAUNCHER}" \
     org.duckietown.label.code.python.registry="${PIP_INDEX_URL}" \
-    # base info
     org.duckietown.label.base.organization="${BASE_ORGANIZATION}" \
     org.duckietown.label.base.repository="${BASE_REPOSITORY}" \
     org.duckietown.label.base.tag="${BASE_TAG}"
 # <== Do not change the code above this line
 # <==================================================
+

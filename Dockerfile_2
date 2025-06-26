@@ -50,7 +50,6 @@ ENV ROS_ROOT=/opt/ros/${ROS_DISTRO}
 # ROS info
 ENV ROS_DISTRO="${ROS_DISTRO}" \
     CATKIN_WS_DIR="/code"
-ENV LD_LIBRARY_PATH="/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}"
 
 # check build arguments
 RUN dt-args-check \
@@ -95,11 +94,6 @@ RUN dt-pip3-install "${PROJECT_PATH}/dependencies-py3.*"
 COPY ./packages "${PROJECT_PATH}/packages"
 #COPY ./packages/ ${CATKIN_WS_DIR}/src/
 
-# install scripts
-COPY ./assets/entrypoint.d "${PROJECT_PATH}/assets/entrypoint.d"
-COPY ./assets/environment.d "${PROJECT_PATH}/assets/environment.d"
-copy ./assets/myyolo11n.pt "${PROJECT_PATH}/assets/myyolo11n.pt"
-
 # build packages
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
   catkin build \
@@ -109,7 +103,9 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
 COPY ./launchers/. "${PROJECT_LAUNCHERS_PATH}/"
 RUN dt-install-launchers "${PROJECT_LAUNCHERS_PATH}"
 
-
+# install scripts
+COPY ./assets/entrypoint.d "${PROJECT_PATH}/assets/entrypoint.d"
+COPY ./assets/environment.d "${PROJECT_PATH}/assets/environment.d"
 # define default command
 CMD ["bash", "-c", "dt-launcher-${DT_LAUNCHER}"]
 
