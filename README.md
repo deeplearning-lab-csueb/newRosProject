@@ -1,3 +1,16 @@
+# If want to run the object-detection on duckiebot(yolo11)
+
+First run `dts devel build -f -H ROBOT_NAME` , This command is use to build the container base one duckiebot environment.
+
+Next Step run `dts devel run -H ROBOT_NAME -L objection_detection` must be -H can not use -R, and the -L means use which launcher file, here we use objection_detection.sh.
+
+# One suggested way to see the result is into rqt_image_view.
+
+First run `dts start_gui_tools ROBOT_NAME`, this will help us enter ros environment.
+
+And then run `rqt_image_view`, after this command a windown will appear, choose the topic we publish the result, In the code we publish the result to topic "object_detection/image/compressed".
+
+
 # Template: template-ros
 
 This template provides a boilerplate repository
