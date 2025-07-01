@@ -1,5 +1,6 @@
 import os
 os.environ["PYGLET_HEADLESS"] = "1"
+#if you want to run the code under an environment without x11, then you need the Display
 from pyvirtualdisplay import Display
 display = Display(visible=0, size=(1024, 768))
 display.start()
